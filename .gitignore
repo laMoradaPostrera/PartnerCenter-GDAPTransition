@@ -1,0 +1,11 @@
+﻿################################################################################
+# This .gitignore file was automatically created by Microsoft(R) Visual Studio.
+################################################################################
+
+/GBM/bin
+/GBM/obj
+/.vs
+/GBM/Logs
+/GBM/GDAPBulkMigration
+/Logs
+/GDAPBulkMigration

@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "PartnerLed": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": ""
+      }
+    }
+  }
+}

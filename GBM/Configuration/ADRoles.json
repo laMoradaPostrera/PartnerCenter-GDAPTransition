@@ -1,0 +1,56 @@
+﻿//This is just a sample set of Roles, please refer to the ADRoleTemplatesAll.json to populate the roles that you want to provision for.
+
+[
+  {
+    "name": "Collaboration",
+    "roles": [
+      {
+        "name": "Dynamics 365 administrator",
+        "id": "44367163-eba1-44c3-98af-f5787879f96a",
+        "description": "Can manage all aspects of the Dynamics 365 product."
+      }
+
+    ]
+  },
+  {
+    "name": "Devices",
+    "roles": [
+
+    ]
+  },
+  {
+    "name": "Global",
+    "roles": [
+
+    ]
+  },
+  {
+    "name": "Identity",
+    "roles": [
+
+      {
+        "name": "Helpdesk administrator",
+        "id": "729827e3-9c14-49f7-bb1b-9608f156bbb8",
+        "description": "Can reset passwords for non-administrators and Helpdesk administrators."
+      }
+    ]
+  },
+  {
+    "name": "Other",
+    "roles": [
+
+    ]
+  },
+  {
+    "name": "Read-only",
+    "roles": [
+
+    ]
+  },
+  {
+    "name": "Security & Compliance",
+    "roles": [
+
+    ]
+  }
+]
