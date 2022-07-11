@@ -81,7 +81,7 @@ namespace PartnerLed.Providers
                 case HttpStatusCode.Forbidden: return "Please check if DAP relationship exists with the Customer.";
                 case HttpStatusCode.Unauthorized: return "Please make sure your Sign-in credentials are MFA enabled.";
                 case HttpStatusCode.BadRequest: return "Please check input setup for Customers and ADRoles.";
-                default: return "Something went wrong.";
+                default: return "Failed. The customer does not exist or DAP relationship is missing.";
             }
 
         }
