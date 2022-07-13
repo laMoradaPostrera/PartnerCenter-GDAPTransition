@@ -25,7 +25,12 @@ namespace PartnerLed.Providers
         /// <summary>
         /// URLs of the protected Web APIs to call GDAP (here Traffic Manager endpoints)
         /// </summary>
-        private string WebApiUrlAllDaps { get { return $"{GdapBaseEndpoint}/v1/delegatedAdminCustomers"; } }
+        protected string WebApiUrlAllDaps { get { return $"{GdapBaseEndpoint}/v1/delegatedAdminCustomers"; } }
+
+        /// <summary>
+        /// URLs of the protected Web APIs to call GDAP (here Traffic Manager endpoints)
+        /// </summary>
+        protected string WebApiUrlAllDapsBulk { get { return $"{GdapBaseEndpoint}/v1/delegatedAdminCustomersBulk"; } }
 
         /// <summary>
         /// DAP provider constructor.
@@ -44,8 +49,9 @@ namespace PartnerLed.Providers
 
 
         /// <summary>
-        /// 
+        /// Export customer Details based on user selection of type
         /// </summary>
+        /// <param name="type">Export type "Json" or "Csv" based on user selection.</param>
         /// <returns></returns>
         public async Task<bool> ExportCustomerDetails(ExportImport type)
         {
@@ -55,34 +61,47 @@ namespace PartnerLed.Providers
             {
                 Console.WriteLine("Getting customers...");
                 string accessToken = authenticationResult.AccessToken;
-                var url = $"{WebApiUrlAllDaps}?$count=true&$filter=dapEnabled+eq+true&$orderby=organizationDisplayName"; ;
+                var url = $"{WebApiUrlAllDaps}?$count=true&$filter=dapEnabled+eq+true&$orderby=organizationDisplayName";
+
+                var nextLink = string.Empty;
+
+                List<DelegatedAdminRelationshipRequest>? allCustomer = new List<DelegatedAdminRelationshipRequest>();
                 try
                 {
-                    var response = await protectedApiCallHelper.CallWebApiAndProcessResultAsync("https://traf-pcsvcadmin-prod.trafficmanager.net/CustomerServiceAdminApi/Web//v1/delegatedAdminCustomers?$count=true&$filter=dapEnabled+eq+true&$orderby=organizationDisplayName", accessToken);
-                    if (response.IsSuccessStatusCode)
+                    Console.WriteLine("Downloading customers..");
+                    protectedApiCallHelper.setHeader(false, accessToken);
+                    do
                     {
-                        var result = JsonConvert.DeserializeObject(response.Content.ReadAsStringAsync().Result) as JObject;
-                        var allCustomer = new List<DelegatedAdminRelationshipRequest>();
-                        var partnerTenantId = tokenProvider.getPartnertenantId();
-
-                        Console.WriteLine("Downloading customers..");
-                        foreach (JProperty child in result.Properties().Where(p => !p.Name.StartsWith("@")))
+                        if (!string.IsNullOrEmpty(nextLink))
                         {
-                            foreach (var item in child.Value)
-                            {
-                                var dapCustomer = item.ToObject<DelegatedAdminCustomer>();
-                                allCustomer.Add(new DelegatedAdminRelationshipRequest() { CustomerTenantId = dapCustomer.CustomerTenantId, OrganizationDisplayName = dapCustomer.OrganizationDisplayName, PartnerTenantId = partnerTenantId });
-                            }
+                            url = nextLink;
                         }
-                        var path = $"{Constants.OutputFolderPath}/customers";
-                        await exportImportProvider.WriteAsync(allCustomer, $"{path}.{Helper.GetExtenstion(type)}");
-                        Console.WriteLine($"Downloaded customers at {Constants.OutputFolderPath}/customers.{Helper.GetExtenstion(type)}");
-                    }
-                    else 
-                    {
-                        string userResponse = GetUserResponse(response.StatusCode);
-                        Console.WriteLine($"{userResponse}");
-                    }
+                        var response = await protectedApiCallHelper.CallWebApiAndProcessResultAsync(url);
+                        if (response.IsSuccessStatusCode)
+                        {
+                            var result = JsonConvert.DeserializeObject(response.Content.ReadAsStringAsync().Result) as JObject;
+                            var partnerTenantId = tokenProvider.getPartnertenantId();
+                            var nextData = result.Properties().Where(p => p.Name.Contains("nextLink"));
+                            nextLink = string.Empty;
+                            if (nextData != null)
+                            {
+                                nextLink = (string?)nextData.FirstOrDefault();
+                            }
+                            Console.Write("..");
+                            allCustomer.AddRange(GetListDelegatedRequest(result, partnerTenantId));
+                            
+                        }
+                        else
+                        {
+                            string userResponse = GetUserResponse(response.StatusCode);
+                            nextLink = string.Empty;
+                            Console.WriteLine($"{userResponse}");
+                        }
+                    } while (!string.IsNullOrEmpty(nextLink));
+
+                    var path = $"{Constants.OutputFolderPath}/customers";
+                    await exportImportProvider.WriteAsync(allCustomer, $"{path}.{Helper.GetExtenstion(type)}");
+                    Console.WriteLine($"\nDownloaded customers at {Constants.OutputFolderPath}/customers.{Helper.GetExtenstion(type)}");
                 }
                 catch (Exception ex)
                 {
@@ -94,6 +113,21 @@ namespace PartnerLed.Providers
             return true;
         }
 
+        private List<DelegatedAdminRelationshipRequest> GetListDelegatedRequest(JObject result, string partnerTenantId) {
+            var allCustomer = new List<DelegatedAdminRelationshipRequest>();
+            foreach (JProperty child in result.Properties().Where(p => !p.Name.StartsWith("@")))
+            {
+                foreach (var item in child.Value)
+                {
+                    var dapCustomer = item.ToObject<DelegatedAdminCustomer>();
+                    allCustomer.Add(new DelegatedAdminRelationshipRequest() { CustomerTenantId = dapCustomer.CustomerTenantId, OrganizationDisplayName = dapCustomer.OrganizationDisplayName, PartnerTenantId = partnerTenantId });
+                }
+            }
+
+            return allCustomer;
+
+        }
+
         private string GetUserResponse(HttpStatusCode statusCode)
         {
             switch (statusCode)
@@ -103,6 +137,11 @@ namespace PartnerLed.Providers
             }
         }
 
+        /// <summary>
+        /// Generate GDAP relationship with Access Assignment in one flow.
+        /// </summary>
+        /// <param name="type">Export type "Json" or "Csv" based on user selection.</param>
+        /// <returns></returns>
         public async Task<bool> GenerateDAPRelatioshipwithAccessAssignment(ExportImport type)
         {
             Console.ForegroundColor = ConsoleColor.Yellow;
@@ -125,7 +164,7 @@ namespace PartnerLed.Providers
                     await gdapProvider.RefreshGDAPRequestAsync(type);
                     Thread.Sleep(ts);
                     await accessAssignmentProvider.CreateAccessAssignmentRequestAsync(type);
-                    Thread.Sleep(ts);
+                    Thread.Sleep(ts1);
                     await accessAssignmentProvider.RefreshAccessAssignmentRequest(type);
                 }
             }
@@ -134,6 +173,49 @@ namespace PartnerLed.Providers
                 logger.LogError(ex.Message);
             }
             return true;
+        }
+
+        public async Task<bool> ExportCustomerBulk()
+        {
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine("\t");
+            var confirmation = Helper.UserConfirmation("Warning: This might be a long running operation.");
+            
+            if (!confirmation) {
+                return true;
+            }
+            try
+            {
+
+                var authenticationResult = await tokenProvider.GetTokenAsync(Resource.TrafficManager);
+                if (authenticationResult != null) {
+                    string accessToken = authenticationResult.AccessToken;
+                    var stream = await protectedApiCallHelper.CallWebApiProcessSteamAsync(WebApiUrlAllDapsBulk, accessToken);
+                    SaveStreamAsFile(Constants.OutputFolderPath, stream, "customers-stream.csv.gz");
+                    Console.WriteLine($"Downloaded at {Constants.OutputFolderPath}/customers - stream.csv.gz");
+
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex.Message);
+            }
+            return true;
+        }
+
+        private static void SaveStreamAsFile(string filePath, Stream inputStream, string fileName)
+        {
+            DirectoryInfo info = new DirectoryInfo(filePath);
+            if (!info.Exists)
+            {
+                info.Create();
+            }
+
+            string path = Path.Combine(filePath, fileName);
+            using (FileStream outputFileStream = new FileStream(path, FileMode.Create))
+            {
+                inputStream.CopyTo(outputFileStream);
+            }
         }
     }
 }

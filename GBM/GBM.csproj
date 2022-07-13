@@ -11,9 +11,7 @@
     <None Remove="Configuration\ADRoles.json" />
     <None Remove="Configuration\ADRoleTemplatesAll.json" />
     <None Remove="Configuration\appsettings.json" />
-    <None Remove="Configuration\appsettings.ppe.json" />
-    <None Remove="Configuration\appsettings.prod.json" />
-    <None Remove="Configuration\appsettings.dev.json" />
+
   </ItemGroup>
 
   <ItemGroup>

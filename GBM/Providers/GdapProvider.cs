@@ -45,7 +45,7 @@ namespace PartnerLed.Providers
 
 
 
-        private async Task<DelegatedAdminRelationship> PostGdapRelationship(string url, DelegatedAdminRelationship delegatedAdminRelationship)
+        private async Task<DelegatedAdminRelationship?> PostGdapRelationship(string url, DelegatedAdminRelationship delegatedAdminRelationship)
         {
             logger
                 .LogInformation($"GDAP Request:\n{delegatedAdminRelationship.DisplayName}-{delegatedAdminRelationship.Customer.TenantId}\n{JsonConvert.SerializeObject(delegatedAdminRelationship.AccessDetails.UnifiedRoles)}");
@@ -62,7 +62,7 @@ namespace PartnerLed.Providers
             var relationshipObject = response.IsSuccessStatusCode
                    ? JsonConvert.DeserializeObject<DelegatedAdminRelationship>(response.Content.ReadAsStringAsync().Result)
                    : new DelegatedAdminRelationship() {DisplayName = delegatedAdminRelationship.DisplayName, 
-                        Id = String.Empty, Duration = delegatedAdminRelationship.Duration,
+                        Id = string.Empty, Duration = delegatedAdminRelationship.Duration,
                         Customer = new DelegatedAdminRelationshipCustomerParticipant() { DisplayName = delegatedAdminRelationship.Customer.DisplayName, TenantId = delegatedAdminRelationship.Customer.TenantId},
                         Partner = new DelegatedAdminRelationshipParticipant() {  TenantId = delegatedAdminRelationship.Partner.TenantId}
                    };
@@ -78,36 +78,44 @@ namespace PartnerLed.Providers
                 case HttpStatusCode.Created:
                     return "Created.";
                 case HttpStatusCode.Conflict: return "GDAP Relationship name already exits.";
-                case HttpStatusCode.Forbidden: return "Please check if DAP relationship exists with the Customer.";
+                case HttpStatusCode.NotFound: return "GDAP relationship is already created but User does not have permissions to approve a relationship.";
+                case HttpStatusCode.Forbidden: return "Please check if DAP relationship exists with the Customer or \nif GDAP relationship alredy exists then User has permissions to approve a relationship.";
                 case HttpStatusCode.Unauthorized: return "Please make sure your Sign-in credentials are MFA enabled.";
                 case HttpStatusCode.BadRequest: return "Please check input setup for Customers and ADRoles.";
-                default: return "Failed. The customer does not exist or DAP relationship is missing.";
+                default: return "Failed to create. The customer does not exist, or DAP relationship is missing.";
             }
 
         }
 
         /// <summary>
-        /// 
+        /// Fetch of details of Gdap relationship.
         /// </summary>
-        /// <param name="granularRelationshipId"></param>
-        /// <param name="accessToken"></param>
-        /// <returns></returns>
-        private async Task<T?> GetGdapRelationship<T>(string accessToken, string granularRelationshipId = null)
+        /// <param name="granularRelationshipId">Gdap relationshipId</param>
+        /// <param name="accessToken">bearer token.</param>
+        /// <param name="nextLink">For fetching paginated query.</param>
+        /// <returns>GDAP relationship object</returns>
+        private async Task<T?> GetGdapRelationship<T>(string? granularRelationshipId = null, string? nextLink = null)
         {
             var url = WebApiUrlAllGdaps;
-            if (!string.IsNullOrEmpty(granularRelationshipId))
+            if (string.IsNullOrEmpty(nextLink))
             {
-                url = $"{url}/{granularRelationshipId}?PageSize=500";
+                if (!string.IsNullOrEmpty(granularRelationshipId))
+                {
+                    url = $"{url}/{granularRelationshipId}";
+                }
+                else { url = $"{url}?$count=true"; }
             }
-            else { url = $"{url}?PageSize=500"; }
+            else { url = nextLink; }
 
-            var response = await protectedApiCallHelper.CallWebApiAndProcessResultAsync(url, accessToken);
+            var response = await protectedApiCallHelper.CallWebApiAndProcessResultAsync(url);
             return JsonConvert.DeserializeObject<T>(response.Content.ReadAsStringAsync().Result);
+            
         }
 
         /// <summary>
         ///  Track and update the status of existing GDAP relationship status.
         /// </summary>
+        /// <param name="type">Export type "Json" or "Csv" based on user selection.</param>
         /// <returns></returns>
         public async Task<bool> RefreshGDAPRequestAsync(ExportImport type)
         {
@@ -136,8 +144,9 @@ namespace PartnerLed.Providers
                 var authenticationResult = await tokenProvider.GetTokenAsync(Resource.TrafficManager);
                 var responseList = new List<DelegatedAdminRelationship>();
 
-                var tasks = gdapId
-                    .Select(id => GetGdapRelationship<DelegatedAdminRelationship>(authenticationResult.AccessToken, id));
+                protectedApiCallHelper.setHeader(false, authenticationResult.AccessToken);
+                var tasks = gdapId?
+                    .Select(id => GetGdapRelationship<DelegatedAdminRelationship>(id , null));
                 DelegatedAdminRelationship?[] collection = await Task.WhenAll(tasks);
                 responseList.AddRange(collection);
 
@@ -166,6 +175,7 @@ namespace PartnerLed.Providers
         /// <summary>
         ///  Create GDAP relatioship Object.
         /// </summary>
+        /// <param name="type">Export type "Json" or "Csv" based on user selection.</param>
         /// <returns></returns>
         public async Task<bool> CreateGDAPRequestAsync(ExportImport type)
         {
@@ -210,7 +220,7 @@ namespace PartnerLed.Providers
                     {
                         MaxDegreeOfParallelism = 5
                     };
-                    protectedApiCallHelper.setHeader(url, authenticationResult.AccessToken);
+                    protectedApiCallHelper.setHeader(false, authenticationResult.AccessToken);
                     await Parallel.ForEachAsync(gdapList, options, async (g, cancellationToken) =>
                     {
                         allgdapRelationList.Add(await PostGdapRelationship(url, g));
@@ -236,28 +246,42 @@ namespace PartnerLed.Providers
             return true;
         }
 
+        /// <summary>
+        /// Export all GDAP relationship for partner tenant.
+        /// </summary>
+        /// <param name="type">Export type "Json" or "Csv" based on user selection.</param>
+        /// <returns></returns>
         public async Task<bool> GetAllGDAPAsync(ExportImport type)
         {
             try
             {
                 var exportImportProvider = exportImportProviderFactory.Create(type);
                 var gdapList = new List<DelegatedAdminRelationship>();
+                var nextLink = string.Empty;
                 var authenticationResult = await tokenProvider.GetTokenAsync(Resource.TrafficManager);
                 if (authenticationResult != null)
                 {
                     Console.WriteLine("Downloading relationship(s)...");
                     string accessToken = authenticationResult.AccessToken;
-                    var response = await GetGdapRelationship<JObject>(accessToken);
-                    if (response != null)
+                    protectedApiCallHelper.setHeader(false, accessToken);
+                    do
                     {
+                        var response = await GetGdapRelationship<JObject>(null, nextLink);
+                        var nextData = response.Properties().Where(p => p.Name.Contains("nextLink"));
+                        nextLink = string.Empty;
+                        if (nextData != null)
+                        {
+                            nextLink = (string?)nextData.FirstOrDefault();
+                        }
                         foreach (JProperty? child in response.Properties().Where(p => !p.Name.StartsWith("@")))
                         {
                             gdapList.AddRange(child.Value.Select(item => item.ToObject<DelegatedAdminRelationship>()));
                         }
-                        await exportImportProvider.WriteAsync(gdapList, $"{Constants.OutputFolderPath}/ExistingGdapRelationship.{Helper.GetExtenstion(type)}");
-                        Console.WriteLine($"Downloaded existing GDAP relationship(s) at {Constants.OutputFolderPath}/ExistingGdapRelationship.{Helper.GetExtenstion(type)}");
-                    }
 
+                    } while (!string.IsNullOrEmpty(nextLink));
+
+                    await exportImportProvider.WriteAsync(gdapList, $"{Constants.OutputFolderPath}/ExistingGdapRelationship.{Helper.GetExtenstion(type)}");
+                    Console.WriteLine($"Downloaded existing GDAP relationship(s) at {Constants.OutputFolderPath}/ExistingGdapRelationship.{Helper.GetExtenstion(type)}");
                 }
 
             }

@@ -45,7 +45,7 @@ static async Task RunAsync(IServiceProvider serviceProvider)
 SelectOption:
     Console.Write('>');
     var option = Console.ReadLine();
-    if (!short.TryParse(option, out short input) || !(input >= 1 && input <= 9))
+    if (!short.TryParse(option, out short input) || !(input >= 1 && input <= 10))
     {
         Console.WriteLine("Invalid input, Please try again.");
         DisplayOptions();
@@ -58,14 +58,15 @@ SelectOption:
     var result = input switch
     {
         1 => await serviceProvider.GetRequiredService<IDapProvider>().ExportCustomerDetails(type),
-        2 => await serviceProvider.GetRequiredService<IAzureRoleProvider>().ExportAzureDirectoryRoles(type),
-        3 => await serviceProvider.GetRequiredService<IAccessAssignmentProvider>().ExportSecurityGroup(type),
-        4 => await serviceProvider.GetRequiredService<IGdapProvider>().GetAllGDAPAsync(type),
-        5 => await serviceProvider.GetRequiredService<IDapProvider>().GenerateDAPRelatioshipwithAccessAssignment(type),
-        6 => await serviceProvider.GetRequiredService<IGdapProvider>().CreateGDAPRequestAsync(type),
-        7 => await serviceProvider.GetRequiredService<IGdapProvider>().RefreshGDAPRequestAsync(type),
-        8 => await serviceProvider.GetRequiredService<IAccessAssignmentProvider>().CreateAccessAssignmentRequestAsync(type),
-        9 => await serviceProvider.GetRequiredService<IAccessAssignmentProvider>().RefreshAccessAssignmentRequest(type),
+        2 => await serviceProvider.GetRequiredService<IDapProvider>().ExportCustomerBulk(),
+        3 => await serviceProvider.GetRequiredService<IAzureRoleProvider>().ExportAzureDirectoryRoles(type),
+        4 => await serviceProvider.GetRequiredService<IAccessAssignmentProvider>().ExportSecurityGroup(type),
+        5 => await serviceProvider.GetRequiredService<IGdapProvider>().GetAllGDAPAsync(type),
+        6 => await serviceProvider.GetRequiredService<IDapProvider>().GenerateDAPRelatioshipwithAccessAssignment(type),
+        7 => await serviceProvider.GetRequiredService<IGdapProvider>().CreateGDAPRequestAsync(type),
+        8 => await serviceProvider.GetRequiredService<IGdapProvider>().RefreshGDAPRequestAsync(type),
+        9 => await serviceProvider.GetRequiredService<IAccessAssignmentProvider>().CreateAccessAssignmentRequestAsync(type),
+        10 => await serviceProvider.GetRequiredService<IAccessAssignmentProvider>().RefreshAccessAssignmentRequest(type),
         _ => throw new InvalidOperationException("Invalid input")
     };
 
@@ -78,16 +79,17 @@ static void DisplayOptions()
 {
     Console.WriteLine("\nDownload Operations: ");
     Console.WriteLine("\t 1. Download eligible customers list");
-    Console.WriteLine("\t 2. Download Azure AD Roles");
-    Console.WriteLine("\t 3. Download Partner Tenant's Security Group(s)");
-    Console.WriteLine("\t 4. Download existing GDAP relationship(s)\n");
+    Console.WriteLine("\t 2. Download eligible customers for very large list (compressed format)");
+    Console.WriteLine("\t 3. Download Azure AD Roles");
+    Console.WriteLine("\t 4. Download Partner Tenant's Security Group(s)");
+    Console.WriteLine("\t 5. Download existing GDAP relationship(s)\n");
     Console.WriteLine("GDAP Relationship Operations: ");
-    Console.WriteLine("\t 5. One flow generation");
-    Console.WriteLine("\t 6. Create GDAP Relationship(s)");
-    Console.WriteLine("\t 7. Refresh GDAP Relationship status\n");
-    Console.WriteLine("Access Assignment Operations: ");
-    Console.WriteLine("\t 8. Create Access Assignment(s)");
-    Console.WriteLine("\t 9. Refresh Access Assignment status");
+    Console.WriteLine("\t 6. One flow generation");
+    Console.WriteLine("\t 7. Create GDAP Relationship(s)");
+    Console.WriteLine("\t 8. Refresh GDAP Relationship status\n");
+    Console.WriteLine("Provision Security Group Operations: ");
+    Console.WriteLine("\t 9. Create Security Group-Role Assignment(s)");
+    Console.WriteLine("\t 10. Refresh Security Group-Role Assignment status");
 }
 
 static void setupDirectory()

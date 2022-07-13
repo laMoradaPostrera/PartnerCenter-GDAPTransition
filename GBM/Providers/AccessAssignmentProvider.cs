@@ -68,7 +68,8 @@ namespace PartnerLed.Providers
                     Console.WriteLine("Getting Security Groups");
                     string accessToken = authenticationResult.AccessToken;
 
-                    var response = await protectedApiCallHelper.CallWebApiAndProcessResultAsync(graphEndpoint, accessToken);
+                    protectedApiCallHelper.setHeader(true, accessToken);
+                    var response = await protectedApiCallHelper.CallWebApiAndProcessResultAsync(graphEndpoint);
                     if (response != null && response.IsSuccessStatusCode)
                     {
                         var result = JsonConvert.DeserializeObject(response.Content.ReadAsStringAsync().Result) as JObject;
@@ -130,7 +131,8 @@ namespace PartnerLed.Providers
 
                 if (authenticationResult != null)
                 {
-                    Console.WriteLine("Updating Access Assignment");
+                    Console.WriteLine("Updating Access Assignment..");
+                    protectedApiCallHelper.setHeader(false, authenticationResult.AccessToken);
                     var tasks = inputRequest?.Select(x => GetDelegatedAdminAccessAssignment(x.GdapRelationshipId, x.AccessAssignmentId, authenticationResult.AccessToken));
                     var collection = await Task.WhenAll(tasks);
                     responseList.AddRange(collection);
@@ -198,9 +200,10 @@ namespace PartnerLed.Providers
                 {
                     if (authenticationResult != null)
                     {
+                        protectedApiCallHelper.setHeader(false, authenticationResult.AccessToken);
                         foreach (var gdapRelationship in inputList)
                         {
-                            var tasks = list?.Select(item => PostGranularAdminAccessAssignment(gdapRelationship.Id, authenticationResult.AccessToken, item));
+                            var tasks = list?.Select(item => PostGranularAdminAccessAssignment(gdapRelationship.Id, item));
                             DelegatedAdminAccessAssignmentRequest?[] collection = await Task.WhenAll(tasks);
                             responseList.AddRange(collection);
                         }
@@ -234,7 +237,7 @@ namespace PartnerLed.Providers
         /// <param name="token"></param>
         /// <param name="data"></param>
         /// <returns>DelegatedAdminAccessAssignmentRequest</returns>
-        private async Task<DelegatedAdminAccessAssignmentRequest?> PostGranularAdminAccessAssignment(string gdapRelationshipId, string token, DelegatedAdminAccessAssignment data)
+        private async Task<DelegatedAdminAccessAssignmentRequest?> PostGranularAdminAccessAssignment(string gdapRelationshipId, DelegatedAdminAccessAssignment data)
         {
             try
             {
@@ -242,7 +245,7 @@ namespace PartnerLed.Providers
 
                 logger.LogInformation($"Assignment Request:\n{gdapRelationshipId}\n{JsonConvert.SerializeObject(data.AccessDetails)}");
 
-                HttpResponseMessage response = await protectedApiCallHelper.CallWebApiPostAndProcessResultAsync(url, token, JsonConvert.SerializeObject(data,
+                HttpResponseMessage response = await protectedApiCallHelper.CallWebApiPostAndProcessResultAsync(url, JsonConvert.SerializeObject(data,
                     new JsonSerializerSettings
                     {
                         NullValueHandling = NullValueHandling.Ignore,
@@ -283,7 +286,7 @@ namespace PartnerLed.Providers
                 case HttpStatusCode.Forbidden: return "Please check if DAP relationship exists with the Customer.";
                 case HttpStatusCode.Unauthorized: return "Please make sure your Sign-in credentials are MFA enabled.";
                 case HttpStatusCode.BadRequest: return "Please check input setup for gdaprelationships and securitygroup configuration.";
-                default: return "Something went wrong.";
+                default: return "Failed to create. Please try again.";
             }
 
         }
@@ -298,7 +301,7 @@ namespace PartnerLed.Providers
         private async Task<DelegatedAdminAccessAssignmentRequest?> GetDelegatedAdminAccessAssignment(string gdapRelationshipId, string accessAssignmentId, string token)
         {
             var url = $"{WebApiUrlAllGdaps}/{gdapRelationshipId}/accessAssignments/{accessAssignmentId}";
-            var response = await protectedApiCallHelper.CallWebApiAndProcessResultAsync(url, token);
+            var response = await protectedApiCallHelper.CallWebApiAndProcessResultAsync(url);
             if (response != null && response.IsSuccessStatusCode)
             {
                 var accessAssignmentObject = JsonConvert.DeserializeObject<DelegatedAdminAccessAssignment>(response.Content.ReadAsStringAsync().Result);

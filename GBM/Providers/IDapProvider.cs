@@ -6,6 +6,8 @@ namespace PartnerLed.Providers
     {
         Task<bool> ExportCustomerDetails(ExportImport type);
 
+        Task<bool> ExportCustomerBulk();
+
         Task<bool> GenerateDAPRelatioshipwithAccessAssignment(ExportImport type);
     }
 }
