@@ -1,9 +1,9 @@
-﻿using System.Globalization;
-using System.Reflection;
-using System.Text;
-using CsvHelper;
+﻿using CsvHelper;
 using CsvHelper.Configuration;
+using PartnerLed.Model;
 using PartnerLed.Providers;
+using System.Globalization;
+using System.Text;
 
 namespace PartnerLed.Utility
 {
@@ -42,11 +42,16 @@ namespace PartnerLed.Utility
             {
                 Encoding = Encoding.UTF8, // Our file uses UTF-8 encoding.
                 Delimiter = ",", // The delimiter is a comma.
-                ShouldSkipRecord = record => record.Record.All(field => String.IsNullOrWhiteSpace(field))
+                ShouldSkipRecord = record => record.Record.All(field => string.IsNullOrWhiteSpace(field))      
             };
 
             using TextReader fileReader = File.OpenText($"{fileName}");
             using var csvReader = new CsvReader(fileReader, configuration);
+            Type type = typeof(T);
+            if (type.Name == "DelegatedAdminRelationship")
+            {
+                csvReader.Context.RegisterClassMap<DelegatedAdminRelationshipMap>();
+            }
             List<T> input = csvReader.GetRecords<T>().ToList();
             csvReader.Dispose();
             fileReader.Close();

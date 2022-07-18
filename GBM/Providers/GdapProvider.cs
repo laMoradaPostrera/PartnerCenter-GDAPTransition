@@ -48,7 +48,7 @@ namespace PartnerLed.Providers
         private async Task<DelegatedAdminRelationship?> PostGdapRelationship(string url, DelegatedAdminRelationship delegatedAdminRelationship)
         {
             logger
-                .LogInformation($"GDAP Request:\n{delegatedAdminRelationship.DisplayName}-{delegatedAdminRelationship.Customer.TenantId}\n{JsonConvert.SerializeObject(delegatedAdminRelationship.AccessDetails.UnifiedRoles)}");
+                .LogInformation($"GDAP Request:\n{delegatedAdminRelationship.DisplayName}-{delegatedAdminRelationship.Customer.TenantId}\n{JsonConvert.SerializeObject(delegatedAdminRelationship.AccessDetails.UnifiedRoles)}\n");
 
             var response = await protectedApiCallHelper.CallWebApiPostAndProcessResultAsync(url, 
                 JsonConvert.SerializeObject(delegatedAdminRelationship, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore }).ToString());
@@ -57,14 +57,17 @@ namespace PartnerLed.Providers
             Console.WriteLine($"{delegatedAdminRelationship.DisplayName} - {userResponse}");
 
             logger
-              .LogInformation($"GDAP Response:\n{delegatedAdminRelationship.DisplayName}-{delegatedAdminRelationship.Customer.TenantId}\n{response}");
+              .LogInformation($"GDAP Response:\n{delegatedAdminRelationship.DisplayName} {delegatedAdminRelationship.Customer.TenantId}\n {response.Content.ReadAsStringAsync().Result} \n");
 
             var relationshipObject = response.IsSuccessStatusCode
                    ? JsonConvert.DeserializeObject<DelegatedAdminRelationship>(response.Content.ReadAsStringAsync().Result)
-                   : new DelegatedAdminRelationship() {DisplayName = delegatedAdminRelationship.DisplayName, 
-                        Id = string.Empty, Duration = delegatedAdminRelationship.Duration,
-                        Customer = new DelegatedAdminRelationshipCustomerParticipant() { DisplayName = delegatedAdminRelationship.Customer.DisplayName, TenantId = delegatedAdminRelationship.Customer.TenantId},
-                        Partner = new DelegatedAdminRelationshipParticipant() {  TenantId = delegatedAdminRelationship.Partner.TenantId}
+                   : new DelegatedAdminRelationship()
+                   {
+                       DisplayName = delegatedAdminRelationship.DisplayName,
+                       Id = string.Empty,
+                       Duration = delegatedAdminRelationship.Duration,
+                       Customer = new DelegatedAdminRelationshipCustomerParticipant() { DisplayName = delegatedAdminRelationship.Customer.DisplayName, TenantId = delegatedAdminRelationship.Customer.TenantId },
+                       Partner = new DelegatedAdminRelationshipParticipant() { TenantId = delegatedAdminRelationship.Partner.TenantId }
                    };
 
             return relationshipObject;
@@ -146,7 +149,7 @@ namespace PartnerLed.Providers
 
                 protectedApiCallHelper.setHeader(false, authenticationResult.AccessToken);
                 var tasks = gdapId?
-                    .Select(id => GetGdapRelationship<DelegatedAdminRelationship>(id , null));
+                    .Select(id => GetGdapRelationship<DelegatedAdminRelationship>(id, null));
                 DelegatedAdminRelationship?[] collection = await Task.WhenAll(tasks);
                 responseList.AddRange(collection);
 

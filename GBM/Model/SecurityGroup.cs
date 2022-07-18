@@ -1,4 +1,6 @@
-﻿namespace PartnerLed.Model
+﻿using Newtonsoft.Json;
+
+namespace PartnerLed.Model
 {
     /// <summary>
     /// Specifies the details of a security group.
@@ -23,6 +25,7 @@
         /// <summary>
         ///  Gets the List of Unified roles.
         /// </summary>
+        [JsonProperty("Roles", DefaultValueHandling = DefaultValueHandling.Ignore)]
         public IEnumerable<UnifiedRole?>? Roles
         {
             get

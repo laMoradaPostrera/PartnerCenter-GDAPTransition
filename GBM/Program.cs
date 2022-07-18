@@ -77,17 +77,17 @@ SelectOption:
 
 static void DisplayOptions()
 {
-    Console.WriteLine("\nDownload Operations: ");
+    Console.WriteLine("\nDownload operations: ");
     Console.WriteLine("\t 1. Download eligible customers list");
     Console.WriteLine("\t 2. Download eligible customers for very large list (compressed format)");
     Console.WriteLine("\t 3. Download Azure AD Roles");
     Console.WriteLine("\t 4. Download Partner Tenant's Security Group(s)");
     Console.WriteLine("\t 5. Download existing GDAP relationship(s)\n");
-    Console.WriteLine("GDAP Relationship Operations: ");
+    Console.WriteLine("GDAP Relationship operations: ");
     Console.WriteLine("\t 6. One flow generation");
     Console.WriteLine("\t 7. Create GDAP Relationship(s)");
     Console.WriteLine("\t 8. Refresh GDAP Relationship status\n");
-    Console.WriteLine("Provision Security Group Operations: ");
+    Console.WriteLine("Provision Partner Security Group access operations: ");
     Console.WriteLine("\t 9. Create Security Group-Role Assignment(s)");
     Console.WriteLine("\t 10. Refresh Security Group-Role Assignment status");
 }

@@ -144,26 +144,27 @@ namespace PartnerLed.Providers
         /// <returns></returns>
         public async Task<bool> GenerateDAPRelatioshipwithAccessAssignment(ExportImport type)
         {
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine("\t");
-            Console.WriteLine("Warning: To run this operation, please make sure all the files should be in the input folder mentioned below");
+            var option = Helper.UserConfirmation("Warning: To run this operation, please make sure all the files should be in the input folder mentioned below");
             Console.WriteLine($"{Constants.InputFolderPath}/gdapRelationship");
-            Console.ResetColor();
-            Console.WriteLine("Press [y/Y] to continue or any other key to exit the operation.");
-            var option = Console.ReadLine();
             try
             {
-                if (option == "Y" || option == "y")
+                if (option)
                 {
                     TimeSpan ts = new TimeSpan(0, 0, 5);
                     TimeSpan ts1 = new TimeSpan(0, 0, 10);
 
                     await gdapProvider.CreateGDAPRequestAsync(type);
-                    //Console.WriteLine($"Sleeping the Thread for {ts1.TotalSeconds}");
+                    Console.WriteLine($"\nWaiting for relationship activations... 10 seconds");
                     Thread.Sleep(ts1);
                     await gdapProvider.RefreshGDAPRequestAsync(type);
-                    Thread.Sleep(ts);
+
+                    while (!Helper.UserConfirmation("Confirm all GDAP relationship activation complete[y/Y] or refresh again[r/R]:"))
+                    {
+                        await gdapProvider.RefreshGDAPRequestAsync(type);
+                    }                    
+
                     await accessAssignmentProvider.CreateAccessAssignmentRequestAsync(type);
+                    Console.WriteLine($"\nWaiting for security group-role assignment activations...");
                     Thread.Sleep(ts1);
                     await accessAssignmentProvider.RefreshAccessAssignmentRequest(type);
                 }
@@ -177,16 +178,13 @@ namespace PartnerLed.Providers
 
         public async Task<bool> ExportCustomerBulk()
         {
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine("\t");
             var confirmation = Helper.UserConfirmation("Warning: This might be a long running operation.");
-            
+
             if (!confirmation) {
                 return true;
             }
             try
             {
-
                 var authenticationResult = await tokenProvider.GetTokenAsync(Resource.TrafficManager);
                 if (authenticationResult != null) {
                     string accessToken = authenticationResult.AccessToken;
