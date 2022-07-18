@@ -180,10 +180,15 @@ namespace PartnerLed.Providers
 
                 if (securityGroupList == null)
                 {
-                    Console.WriteLine("Security group cannot be Empty");
+                    throw new Exception($"No security groups found in gdapbulkmigration/securitygroup.{Helper.GetExtenstion(type)}");
                 }
 
-                var option = Helper.UserConfirmation($"Waring: There are {securityGroupList.Count} Secuirty Groups configured for Access Assignment, are you sure you want to continue with this?");
+                if (securityGroupList.Any(item => string.IsNullOrEmpty(item.CommaSeperatedRoles)))
+                {
+                    throw new Exception($"One or more security groups do not have roles mapped in gdapbulkmigration/securitygroup.{Helper.GetExtenstion(type)}");
+                }
+
+                var option = Helper.UserConfirmation($"Waring: There are {securityGroupList.Count} Security Groups configured for Access Assignment, are you sure you want to continue with this?");
                 if (!option)
                 {
                     return true;
@@ -257,9 +262,9 @@ namespace PartnerLed.Providers
 
                 var accessAssignmentObject = response.IsSuccessStatusCode 
                     ? JsonConvert.DeserializeObject<DelegatedAdminAccessAssignment>(response.Content.ReadAsStringAsync().Result)
-                    : new DelegatedAdminAccessAssignment() { Status = "Failed", Id=String.Empty };
+                    : new DelegatedAdminAccessAssignment() { Status = "Failed", Id = string.Empty };
 
-                logger.LogInformation($"Assignment Response:\n{gdapRelationshipId}-{response.StatusCode}\n{JsonConvert.SerializeObject(response)}");
+                logger.LogInformation($"Assignment Response:\n {gdapRelationshipId}-{response.StatusCode} \n {response.Content.ReadAsStringAsync().Result} \n");
 
                 return new DelegatedAdminAccessAssignmentRequest()
                 {

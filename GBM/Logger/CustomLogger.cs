@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using PartnerLed.Utility;
 using System.Reflection;
+using System.Text;
 
 namespace PartnerLed.Logger
 {
@@ -9,6 +10,7 @@ namespace PartnerLed.Logger
         private string logFormat = string.Empty;
         private string logPath = string.Empty;
         private readonly string _name;
+        private static object lockerFile = new Object();
         private readonly Func<CustomLoggerConfiguration> _getCurrentConfig;
 
         public CustomLogger(
@@ -46,16 +48,18 @@ namespace PartnerLed.Logger
 
             try
             {
-                if (!File.Exists(logPath))
+                lock (lockerFile)
                 {
-                    File.Create(logPath);
-                }
-                using (StreamWriter writer = File.AppendText(logPath))
-                {
-                    writer.WriteLine(logFormat + logMessage);
+                    using (FileStream file = new FileStream(logPath, FileMode.Append, FileAccess.Write, FileShare.Read))
+                    using (StreamWriter writer = new StreamWriter(file, Encoding.Unicode))
+                    {
+                        StringBuilder sb = new StringBuilder();
+                        sb.Append(logFormat + logMessage);
+                        writer.Write(sb.ToString());
+                    }
                 }
             }
-            catch (Exception ex)
+            catch
             {
                 //Do not do anything 
             }
