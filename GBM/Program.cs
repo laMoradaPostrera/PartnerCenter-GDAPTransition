@@ -35,6 +35,18 @@ await host.RunAsync();
 
 static async Task RunAsync(IServiceProvider serviceProvider)
 {
+    Console.Clear();
+    Console.WriteLine("Checking pre-requisites...");
+
+    if (!checkPrerequisites(serviceProvider))
+    {
+        Console.ForegroundColor = ConsoleColor.Red;
+        Console.WriteLine("Please request your Azure Tenant admin to launch the tool and\n" +
+            "a. Provision the above Service Principal to access GDAP API resource.\nb. Provide consent for this tool to access the GDAP API and read your Tenant Security Groups.");
+        Console.ResetColor();
+        return;
+    }
+
     setupDirectory();
     var type = setupFormat();
 
@@ -90,6 +102,11 @@ static void DisplayOptions()
     Console.WriteLine("Provision Partner Security Group access operations: ");
     Console.WriteLine("\t 9. Create Security Group-Role Assignment(s)");
     Console.WriteLine("\t 10. Refresh Security Group-Role Assignment status");
+}
+
+static bool checkPrerequisites(IServiceProvider serviceProvider)
+{
+    return serviceProvider.GetRequiredService<ITokenProvider>().CheckPrerequisite().Result;
 }
 
 static void setupDirectory()
