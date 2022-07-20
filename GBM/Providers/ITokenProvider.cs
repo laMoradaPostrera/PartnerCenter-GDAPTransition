@@ -6,7 +6,7 @@ namespace PartnerLed.Providers
     internal interface ITokenProvider
     {
         Task<AuthenticationResult?> GetTokenAsync(Resource type);
-
+        Task<bool> CheckPrerequisite();
         string getPartnertenantId();
     }
 }
