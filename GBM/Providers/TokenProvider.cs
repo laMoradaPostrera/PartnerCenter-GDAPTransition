@@ -36,7 +36,7 @@ namespace PartnerLed.Providers
         /// Scopes to request access to the protected Web API (here Microsoft Graph)
         /// </summary>
         private static string[] ScopesGraph { get; } = new string[] {
-            "https://graph.microsoft.com/Group.Read.All", };
+            "https://graph.microsoft.com/Group.Read.All", "https://graph.microsoft.com/Application.ReadWrite.All" };
 
 
         public string getPartnertenantId() => partnerTenantId;
