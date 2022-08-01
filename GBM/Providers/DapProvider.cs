@@ -194,6 +194,17 @@ namespace PartnerLed.Providers
 
                 }
             }
+            catch (HttpRequestException rex)
+            {
+                if (rex.StatusCode == HttpStatusCode.NotFound)
+                {
+                    logger.LogError("\nThe data is available for Partners with number of Customers more than 300.");
+                }
+                else 
+                {
+                    logger.LogError(rex.Message);
+                }
+            }
             catch (Exception ex)
             {
                 logger.LogError(ex.Message);
