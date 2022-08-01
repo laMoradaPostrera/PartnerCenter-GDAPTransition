@@ -92,7 +92,7 @@ static void DisplayOptions()
     Console.WriteLine("\nDownload operations: ");
     Console.WriteLine("\t 1. Download eligible customers list");
     Console.WriteLine("\t 2. Download eligible customers for very large list (compressed format)");
-    Console.WriteLine("\t 3. Download Azure AD Roles");
+    Console.WriteLine("\t 3. Download Example Azure AD Roles");
     Console.WriteLine("\t 4. Download Partner Tenant's Security Group(s)");
     Console.WriteLine("\t 5. Download existing GDAP relationship(s)\n");
     Console.WriteLine("GDAP Relationship operations: ");
