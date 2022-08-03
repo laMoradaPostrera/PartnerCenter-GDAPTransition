@@ -42,7 +42,7 @@ static async Task RunAsync(IServiceProvider serviceProvider)
     {
         Console.ForegroundColor = ConsoleColor.Red;
         Console.WriteLine("Please request your Azure Tenant admin to launch the tool and\n" +
-            "a. Provision the above Service Principal to access GDAP API resource.\nb. Provide consent for this tool to access the GDAP API and read your Tenant Security Groups.");
+            "a. Enable this tool to automatically execute pre-requisite step to grant access to GDAP API.\nb. Provide consent for this tool to access the GDAP API and read your Tenant Security Groups.");
         Console.ResetColor();
         return;
     }
