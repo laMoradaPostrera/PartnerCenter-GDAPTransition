@@ -41,7 +41,7 @@ static async Task RunAsync(IServiceProvider serviceProvider)
     if (!checkPrerequisites(serviceProvider))
     {
         Console.ForegroundColor = ConsoleColor.Red;
-        Console.WriteLine("Please request your Azure Tenant admin to launch the tool and\n" +
+        Console.WriteLine("Please request your Global Admin to launch the tool and\n" +
             "a. Enable this tool to automatically execute pre-requisite step to grant access to GDAP API.\nb. Provide consent for this tool to access the GDAP API and read your Tenant Security Groups.");
         Console.ResetColor();
         return;
