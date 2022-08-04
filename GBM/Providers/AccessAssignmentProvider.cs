@@ -59,9 +59,13 @@ namespace PartnerLed.Providers
         /// <returns> true </returns>
         public async Task<bool> ExportSecurityGroup(ExportImport type)
         {
+            
             try
             {
                 var authenticationResult = await tokenProvider.GetTokenAsync(Resource.GraphManager);
+                var url = graphEndpoint;
+                var nextLink = string.Empty;
+                var securityGroup = new List<SecurityGroup?>();
 
                 if (authenticationResult != null)
                 {
@@ -69,25 +73,39 @@ namespace PartnerLed.Providers
                     string accessToken = authenticationResult.AccessToken;
 
                     protectedApiCallHelper.setHeader(true, accessToken);
-                    var response = await protectedApiCallHelper.CallWebApiAndProcessResultAsync(graphEndpoint);
-                    if (response != null && response.IsSuccessStatusCode)
+
+                    do
                     {
-                        var result = JsonConvert.DeserializeObject(response.Content.ReadAsStringAsync().Result) as JObject;
-                        var securityGroup = new List<SecurityGroup?>();
-                        foreach (JProperty child in result.Properties().Where(p => !p.Name.StartsWith("@")))
+                        if (!string.IsNullOrEmpty(nextLink))
                         {
-                            securityGroup.AddRange(child.Value.Select(item => item.ToObject<SecurityGroup>()));
+                            url = nextLink;
                         }
 
-                        var writer = this.exportImportProviderFactory.Create(type);
-                        await writer.WriteAsync(securityGroup, $"{Constants.OutputFolderPath}/securityGroup.{Helper.GetExtenstion(type)}");
-                        Console.WriteLine($"Downloaded Security Groups at {Constants.OutputFolderPath}/securityGroup.{Helper.GetExtenstion(type)}");
-                    }
-                    else
-                    {
-                        string userResponse = "Failed to get Security Groups.";
-                        Console.WriteLine($"{userResponse}");
-                    }
+                        var response = await protectedApiCallHelper.CallWebApiAndProcessResultAsync(url);
+                        if (response != null && response.IsSuccessStatusCode)
+                        {
+                            var result = JsonConvert.DeserializeObject(response.Content.ReadAsStringAsync().Result) as JObject;
+                            var nextData = result.Properties().Where(p => p.Name.Contains("nextLink"));
+                            nextLink = string.Empty;
+                            if (nextData != null)
+                            {
+                                nextLink = (string?)nextData.FirstOrDefault();
+                            }
+
+                            foreach (JProperty child in result.Properties().Where(p => !p.Name.StartsWith("@")))
+                            {
+                                securityGroup.AddRange(child.Value.Select(item => item.ToObject<SecurityGroup>()));
+                            }                           
+                        }
+                        else
+                        {
+                            string userResponse = "Failed to get Security Groups.";
+                            Console.WriteLine($"{userResponse}");
+                        }
+                    } while (!string.IsNullOrEmpty(nextLink));
+                    var writer = this.exportImportProviderFactory.Create(type);
+                    await writer.WriteAsync(securityGroup, $"{Constants.OutputFolderPath}/securityGroup.{Helper.GetExtenstion(type)}");
+                    Console.WriteLine($"Downloaded Security Groups at {Constants.OutputFolderPath}/securityGroup.{Helper.GetExtenstion(type)}");
                 }
             }
             catch (Exception ex)
