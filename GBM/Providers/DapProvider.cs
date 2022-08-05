@@ -133,6 +133,7 @@ namespace PartnerLed.Providers
             switch (statusCode)
             {
                 case HttpStatusCode.Unauthorized: return "Authentication Failed. Please make sure your Sign-in credentials are MFA enabled.";
+                case HttpStatusCode.NotFound: return "Cutomers not found.";
                 default: return "Failed to get Customer details.";
             }
         }
