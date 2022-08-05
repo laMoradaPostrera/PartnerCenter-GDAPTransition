@@ -111,8 +111,14 @@ namespace PartnerLed.Providers
             else { url = nextLink; }
 
             var response = await protectedApiCallHelper.CallWebApiAndProcessResultAsync(url);
-            return JsonConvert.DeserializeObject<T>(response.Content.ReadAsStringAsync().Result);
-            
+            if (!response.IsSuccessStatusCode)
+            {
+                if (response.StatusCode == HttpStatusCode.Unauthorized)
+                {
+                    throw new Exception("Please make sure your Sign-in credentials are MFA enabled.");
+                }
+            }
+            return JsonConvert.DeserializeObject<T>(response.Content.ReadAsStringAsync().Result);            
         }
 
         /// <summary>
