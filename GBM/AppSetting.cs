@@ -36,7 +36,7 @@ namespace PartnerLed
             MicrosoftGraphBaseEndpoint = config.MicrosoftGraphBaseEndpoint;
             InteractiveApp = PublicClientApplicationBuilder
                         .CreateWithApplicationOptions(appConfig)
-                        .WithDefaultRedirectUri().Build();
+                        .WithDefaultRedirectUri().WithExtraQueryParameters(new Dictionary<string, string>(){ { "acr_values", "urn:microsoft:policies:mfa" } }).Build();
         }
     }
 }
