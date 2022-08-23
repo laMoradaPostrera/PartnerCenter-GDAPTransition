@@ -43,7 +43,7 @@ namespace PartnerLed.Logger
 
         public void LogWrite(string logMessage)
         {
-            logPath = $"{Environment.GetEnvironmentVariable(Constants.BasepathVariable)}\\Logs\\LogFile{DateTime.Now.ToString("MMddyyyy")}.txt";
+            logPath = $"{Environment.GetEnvironmentVariable(Constants.BasepathVariable)}/Logs/LogFile{DateTime.Now.ToString("MMddyyyy")}.txt";
             logFormat = "\n" + DateTime.Now.ToString() + ":";
 
             try

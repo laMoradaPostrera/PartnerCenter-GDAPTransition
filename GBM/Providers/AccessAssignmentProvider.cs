@@ -125,7 +125,7 @@ namespace PartnerLed.Providers
             try
             {
                 var exportImportProvider = exportImportProviderFactory.Create(type);
-                var accessAssignmentFilepath = $"{Constants.InputFolderPath}/accessAssignment\\accessAssignment.{Helper.GetExtenstion(type)}";
+                var accessAssignmentFilepath = $"{Constants.InputFolderPath}/accessAssignment/accessAssignment.{Helper.GetExtenstion(type)}";
                 var accessAssignmentList = await exportImportProvider.ReadAsync<DelegatedAdminAccessAssignmentRequest>(accessAssignmentFilepath);
                 Console.WriteLine($"Reading files @ {accessAssignmentFilepath}");
                 var authenticationResult = await tokenProvider.GetTokenAsync(Resource.TrafficManager);
@@ -184,15 +184,15 @@ namespace PartnerLed.Providers
             try
             {
                 var exportImportProvider = exportImportProviderFactory.Create(type);
-                var gDapFilepath = $"{Constants.InputFolderPath}/gdapRelationship\\gdapRelationship.{Helper.GetExtenstion(type)}";
+                var gDapFilepath = $"{Constants.InputFolderPath}/gdapRelationship/gdapRelationship.{Helper.GetExtenstion(type)}";
                 var gDapRelationshipList = await exportImportProvider.ReadAsync<DelegatedAdminRelationship>(gDapFilepath);
                 Console.WriteLine($"Reading files @ {gDapFilepath}");
 
-                var azureRoleFilePath = $"{Constants.InputFolderPath}\\ADRoles.{Helper.GetExtenstion(type)}";
+                var azureRoleFilePath = $"{Constants.InputFolderPath}/ADRoles.{Helper.GetExtenstion(type)}";
                 Console.WriteLine($"Reading files @ {azureRoleFilePath}");
                 var inputAdRole = await exportImportProvider.ReadAsync<ADRole>(azureRoleFilePath);
 
-                var securityRolepath = $"{Constants.InputFolderPath}\\securityGroup.{Helper.GetExtenstion(type)}";
+                var securityRolepath = $"{Constants.InputFolderPath}/securityGroup.{Helper.GetExtenstion(type)}";
                 Console.WriteLine($"Reading files @ {securityRolepath}");
                 var securityGroupList = await exportImportProvider.ReadAsync<SecurityGroup>(securityRolepath);
 
