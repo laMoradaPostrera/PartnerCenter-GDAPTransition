@@ -13,7 +13,7 @@ namespace PartnerLed.Providers
         /// </summary>
         /// <param name="appSettings">The app settings.</param>
         public TokenProvider(AppSetting appSetting)
-        { 
+        {
             tokenAcquisitionHelper = new PublicAppUsingInteractive(appSetting.InteractiveApp);
             protectedApiCallHelper = new ProtectedApiCallHelper(appSetting.Client);
             graphendpoint = appSetting.MicrosoftGraphBaseEndpoint;
@@ -87,6 +87,13 @@ namespace PartnerLed.Providers
                 Console.WriteLine("Failed to authenticate.");
             }
 
+            if (result == null || string.IsNullOrEmpty(result.AccessToken))
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine("Access token missing.");
+                Console.ResetColor();
+            }
+
             return result;
         }
 
@@ -124,10 +131,10 @@ namespace PartnerLed.Providers
             {
                 Console.WriteLine("Attempting to provision Partner Customer Delegated Administration API..");
                 graphAuthenticationResult = await AcquireTokenAsync(ScopesGraph);
-                protectedApiCallHelper.setHeader(true, graphAuthenticationResult.AccessToken);
+                protectedApiCallHelper.setHeader(true);
 
                 HttpResponseMessage response = await protectedApiCallHelper
-                    .CallWebApiPostAndProcessResultAsync($"{graphendpoint}/v1.0/servicePrincipals",
+                    .CallWebApiPostAndProcessResultAsync($"{graphendpoint}/v1.0/servicePrincipals", graphAuthenticationResult.AccessToken,
                     "{'appId': '2832473f-ec63-45fb-976f-5d45a7d4bb91'}");
 
                 switch (response.StatusCode)

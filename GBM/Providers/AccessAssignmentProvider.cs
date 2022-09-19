@@ -52,6 +52,11 @@ namespace PartnerLed.Providers
         /// </summary>
         private string WebApiUrlAllGdaps { get { return $"{GdapBaseEndpoint}/v1/delegatedAdminRelationships"; } }
 
+        private async Task<string?> getToken(Resource resource)
+        {
+            var authenticationResult = await tokenProvider.GetTokenAsync(resource);
+            return authenticationResult?.AccessToken;
+        }
 
         /// <summary>
         /// Generate the Security Group list from Graph Endpoint.
@@ -59,55 +64,50 @@ namespace PartnerLed.Providers
         /// <returns> true </returns>
         public async Task<bool> ExportSecurityGroup(ExportImport type)
         {
-            
             try
             {
-                var authenticationResult = await tokenProvider.GetTokenAsync(Resource.GraphManager);
                 var url = graphEndpoint;
                 var nextLink = string.Empty;
                 var securityGroup = new List<SecurityGroup?>();
 
-                if (authenticationResult != null)
+                Console.WriteLine("Getting Security Groups");
+                protectedApiCallHelper.setHeader(true);
+
+                do
                 {
-                    Console.WriteLine("Getting Security Groups");
-                    string accessToken = authenticationResult.AccessToken;
-
-                    protectedApiCallHelper.setHeader(true, accessToken);
-
-                    do
+                    var accessToken = await getToken(Resource.GraphManager);
+                    if (!string.IsNullOrEmpty(nextLink))
                     {
-                        if (!string.IsNullOrEmpty(nextLink))
+                        url = nextLink;
+                    }
+
+                    var response = await protectedApiCallHelper.CallWebApiAndProcessResultAsync(url, accessToken);
+                    if (response != null && response.IsSuccessStatusCode)
+                    {
+                        var result = JsonConvert.DeserializeObject(response.Content.ReadAsStringAsync().Result) as JObject;
+                        var nextData = result.Properties().Where(p => p.Name.Contains("nextLink"));
+                        nextLink = string.Empty;
+                        if (nextData != null)
                         {
-                            url = nextLink;
+                            nextLink = (string?)nextData.FirstOrDefault();
                         }
 
-                        var response = await protectedApiCallHelper.CallWebApiAndProcessResultAsync(url);
-                        if (response != null && response.IsSuccessStatusCode)
+                        foreach (JProperty child in result.Properties().Where(p => !p.Name.StartsWith("@")))
                         {
-                            var result = JsonConvert.DeserializeObject(response.Content.ReadAsStringAsync().Result) as JObject;
-                            var nextData = result.Properties().Where(p => p.Name.Contains("nextLink"));
-                            nextLink = string.Empty;
-                            if (nextData != null)
-                            {
-                                nextLink = (string?)nextData.FirstOrDefault();
-                            }
-
-                            foreach (JProperty child in result.Properties().Where(p => !p.Name.StartsWith("@")))
-                            {
-                                securityGroup.AddRange(child.Value.Select(item => item.ToObject<SecurityGroup>()));
-                            }                           
+                            securityGroup.AddRange(child.Value.Select(item => item.ToObject<SecurityGroup>()));
                         }
-                        else
-                        {
-                            string userResponse = "Failed to get Security Groups.";
-                            Console.WriteLine($"{userResponse}");
-                        }
-                    } while (!string.IsNullOrEmpty(nextLink));
-                    var writer = this.exportImportProviderFactory.Create(type);
-                    await writer.WriteAsync(securityGroup, $"{Constants.OutputFolderPath}/securityGroup.{Helper.GetExtenstion(type)}");
-                    Console.WriteLine($"Downloaded Security Groups at {Constants.OutputFolderPath}/securityGroup.{Helper.GetExtenstion(type)}");
-                }
+                    }
+                    else
+                    {
+                        string userResponse = "Failed to get Security Groups.";
+                        Console.WriteLine($"{userResponse}");
+                    }
+                } while (!string.IsNullOrEmpty(nextLink));
+                var writer = this.exportImportProviderFactory.Create(type);
+                await writer.WriteAsync(securityGroup, $"{Constants.OutputFolderPath}/securityGroup.{Helper.GetExtenstion(type)}");
+                Console.WriteLine($"Downloaded Security Groups at {Constants.OutputFolderPath}/securityGroup.{Helper.GetExtenstion(type)}");
             }
+
             catch (Exception ex)
             {
                 logger.LogError(ex.Message);
@@ -128,13 +128,6 @@ namespace PartnerLed.Providers
                 var accessAssignmentFilepath = $"{Constants.InputFolderPath}/accessAssignment/accessAssignment.{Helper.GetExtenstion(type)}";
                 var accessAssignmentList = await exportImportProvider.ReadAsync<DelegatedAdminAccessAssignmentRequest>(accessAssignmentFilepath);
                 Console.WriteLine($"Reading files @ {accessAssignmentFilepath}");
-                var authenticationResult = await tokenProvider.GetTokenAsync(Resource.TrafficManager);
-
-                if (authenticationResult == null)
-                {
-                    Console.WriteLine("Failed to authenticate.");
-                    return false;
-                }
                 var inputRequest = accessAssignmentList?.Where(x => x.Status.ToLower() != "active");
                 var remainingDataList = accessAssignmentList?.Where(x => x.Status.ToLower() == "active");
 
@@ -145,16 +138,11 @@ namespace PartnerLed.Providers
                 }
 
                 var responseList = new List<DelegatedAdminAccessAssignmentRequest>();
-
-
-                if (authenticationResult != null)
-                {
-                    Console.WriteLine("Updating Access Assignment..");
-                    protectedApiCallHelper.setHeader(false, authenticationResult.AccessToken);
-                    var tasks = inputRequest?.Select(x => GetDelegatedAdminAccessAssignment(x.GdapRelationshipId, x.AccessAssignmentId, authenticationResult.AccessToken));
-                    var collection = await Task.WhenAll(tasks);
-                    responseList.AddRange(collection);
-                }
+                Console.WriteLine("Updating Access Assignment..");
+                protectedApiCallHelper.setHeader(false);
+                var tasks = inputRequest?.Select(x => GetDelegatedAdminAccessAssignment(x.GdapRelationshipId, x.AccessAssignmentId));
+                var collection = await Task.WhenAll(tasks);
+                responseList.AddRange(collection);
 
                 if (remainingDataList != null)
                 {
@@ -218,18 +206,14 @@ namespace PartnerLed.Providers
 
                 var inputList = gDapRelationshipList.Where(g => g.Status == DelegatedAdminRelationshipStatus.Active).ToList();
 
-                var authenticationResult = await tokenProvider.GetTokenAsync(Resource.TrafficManager);
                 try
                 {
-                    if (authenticationResult != null)
+                    protectedApiCallHelper.setHeader(false);
+                    foreach (var gdapRelationship in inputList)
                     {
-                        protectedApiCallHelper.setHeader(false, authenticationResult.AccessToken);
-                        foreach (var gdapRelationship in inputList)
-                        {
-                            var tasks = list?.Select(item => PostGranularAdminAccessAssignment(gdapRelationship.Id, item));
-                            DelegatedAdminAccessAssignmentRequest?[] collection = await Task.WhenAll(tasks);
-                            responseList.AddRange(collection);
-                        }
+                        var tasks = list?.Select(item => PostGranularAdminAccessAssignment(gdapRelationship.Id, item));
+                        DelegatedAdminAccessAssignmentRequest?[] collection = await Task.WhenAll(tasks);
+                        responseList.AddRange(collection);
                     }
 
                     if (responseList != null)
@@ -267,8 +251,8 @@ namespace PartnerLed.Providers
                 var url = $"{WebApiUrlAllGdaps}/{gdapRelationshipId}/accessAssignments";
 
                 logger.LogInformation($"Assignment Request:\n{gdapRelationshipId}\n{JsonConvert.SerializeObject(data.AccessDetails)}");
-
-                HttpResponseMessage response = await protectedApiCallHelper.CallWebApiPostAndProcessResultAsync(url, JsonConvert.SerializeObject(data,
+                var token = await getToken(Resource.TrafficManager);
+                HttpResponseMessage response = await protectedApiCallHelper.CallWebApiPostAndProcessResultAsync(url, token, JsonConvert.SerializeObject(data,
                     new JsonSerializerSettings
                     {
                         NullValueHandling = NullValueHandling.Ignore,
@@ -278,7 +262,7 @@ namespace PartnerLed.Providers
                 string userResponse = GetUserResponse(response.StatusCode);
                 Console.WriteLine($"{gdapRelationshipId}-{userResponse}");
 
-                var accessAssignmentObject = response.IsSuccessStatusCode 
+                var accessAssignmentObject = response.IsSuccessStatusCode
                     ? JsonConvert.DeserializeObject<DelegatedAdminAccessAssignment>(response.Content.ReadAsStringAsync().Result)
                     : new DelegatedAdminAccessAssignment() { Status = "Failed", Id = string.Empty };
 
@@ -304,10 +288,10 @@ namespace PartnerLed.Providers
             {
                 case HttpStatusCode.OK:
                 case HttpStatusCode.Created:
-                                              return "Created.";
+                    return "Created.";
                 case HttpStatusCode.Conflict: return "Access assignment already exits.";
                 case HttpStatusCode.Forbidden: return "Please check if DAP relationship exists with the Customer.";
-                case HttpStatusCode.Unauthorized: return "Please make sure your Sign-in credentials are MFA enabled.";
+                case HttpStatusCode.Unauthorized: return "Unauthorized. Please make sure your Sign-in credentials are correct and MFA enabled.";
                 case HttpStatusCode.BadRequest: return "Please check input setup for gdaprelationships and securitygroup configuration.";
                 default: return "Failed to create. Please try again.";
             }
@@ -319,12 +303,12 @@ namespace PartnerLed.Providers
         /// </summary>
         /// <param name="gdapRelationshipId"></param>
         /// <param name="accessAssignmentId"></param>
-        /// <param name="token"></param>
         /// <returns>DelegatedAdminAccessAssignmentRequest</returns>
-        private async Task<DelegatedAdminAccessAssignmentRequest?> GetDelegatedAdminAccessAssignment(string gdapRelationshipId, string accessAssignmentId, string token)
+        private async Task<DelegatedAdminAccessAssignmentRequest?> GetDelegatedAdminAccessAssignment(string gdapRelationshipId, string accessAssignmentId)
         {
             var url = $"{WebApiUrlAllGdaps}/{gdapRelationshipId}/accessAssignments/{accessAssignmentId}";
-            var response = await protectedApiCallHelper.CallWebApiAndProcessResultAsync(url);
+            var token = await getToken(Resource.TrafficManager);
+            var response = await protectedApiCallHelper.CallWebApiAndProcessResultAsync(url, token);
             if (response != null && response.IsSuccessStatusCode)
             {
                 var accessAssignmentObject = JsonConvert.DeserializeObject<DelegatedAdminAccessAssignment>(response.Content.ReadAsStringAsync().Result);
@@ -336,7 +320,7 @@ namespace PartnerLed.Providers
                     Status = accessAssignmentObject.Status
                 };
             }
-            else 
+            else
             {
                 return new DelegatedAdminAccessAssignmentRequest()
                 {

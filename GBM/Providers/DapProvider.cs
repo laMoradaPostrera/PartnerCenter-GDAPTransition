@@ -47,6 +47,12 @@ namespace PartnerLed.Providers
             GdapBaseEndpoint = appSetting.GdapBaseEndPoint;
         }
 
+        private async Task<string?> getToken(Resource resource)
+        {
+            var authenticationResult = await tokenProvider.GetTokenAsync(resource);
+            return authenticationResult?.AccessToken;
+        }
+
 
         /// <summary>
         /// Export customer Details based on user selection of type
@@ -55,65 +61,59 @@ namespace PartnerLed.Providers
         /// <returns></returns>
         public async Task<bool> ExportCustomerDetails(ExportImport type)
         {
-            var authenticationResult = await tokenProvider.GetTokenAsync(Resource.TrafficManager);
             var exportImportProvider = exportImportProviderFactory.Create(type);
-            if (authenticationResult != null)
+            Console.WriteLine("Getting customers...");
+            var url = $"{WebApiUrlAllDaps}?$count=true&$filter=dapEnabled+eq+true&$orderby=organizationDisplayName";
+            var nextLink = string.Empty;
+            List<DelegatedAdminRelationshipRequest>? allCustomer = new List<DelegatedAdminRelationshipRequest>();
+            try
             {
-                Console.WriteLine("Getting customers...");
-                string accessToken = authenticationResult.AccessToken;
-                var url = $"{WebApiUrlAllDaps}?$count=true&$filter=dapEnabled+eq+true&$orderby=organizationDisplayName";
-
-                var nextLink = string.Empty;
-
-                List<DelegatedAdminRelationshipRequest>? allCustomer = new List<DelegatedAdminRelationshipRequest>();
-                try
+                Console.WriteLine("Downloading customers..");
+                protectedApiCallHelper.setHeader(false);
+                do
                 {
-                    Console.WriteLine("Downloading customers..");
-                    protectedApiCallHelper.setHeader(false, accessToken);
-                    do
+                    var accessToken = await getToken(Resource.TrafficManager);
+                    if (!string.IsNullOrEmpty(nextLink))
                     {
-                        if (!string.IsNullOrEmpty(nextLink))
+                        url = nextLink;
+                    }
+                    var response = await protectedApiCallHelper.CallWebApiAndProcessResultAsync(url, accessToken);
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var result = JsonConvert.DeserializeObject(response.Content.ReadAsStringAsync().Result) as JObject;
+                        var partnerTenantId = tokenProvider.getPartnertenantId();
+                        var nextData = result.Properties().Where(p => p.Name.Contains("nextLink"));
+                        nextLink = string.Empty;
+                        if (nextData != null)
                         {
-                            url = nextLink;
+                            nextLink = (string?)nextData.FirstOrDefault();
                         }
-                        var response = await protectedApiCallHelper.CallWebApiAndProcessResultAsync(url);
-                        if (response.IsSuccessStatusCode)
-                        {
-                            var result = JsonConvert.DeserializeObject(response.Content.ReadAsStringAsync().Result) as JObject;
-                            var partnerTenantId = tokenProvider.getPartnertenantId();
-                            var nextData = result.Properties().Where(p => p.Name.Contains("nextLink"));
-                            nextLink = string.Empty;
-                            if (nextData != null)
-                            {
-                                nextLink = (string?)nextData.FirstOrDefault();
-                            }
-                            Console.Write("..");
-                            allCustomer.AddRange(GetListDelegatedRequest(result, partnerTenantId));
-                            
-                        }
-                        else
-                        {
-                            string userResponse = GetUserResponse(response.StatusCode);
-                            nextLink = string.Empty;
-                            Console.WriteLine($"{userResponse}");
-                        }
-                    } while (!string.IsNullOrEmpty(nextLink));
+                        Console.Write("..");
+                        allCustomer.AddRange(GetListDelegatedRequest(result, partnerTenantId));
 
-                    var path = $"{Constants.OutputFolderPath}/customers";
-                    await exportImportProvider.WriteAsync(allCustomer, $"{path}.{Helper.GetExtenstion(type)}");
-                    Console.WriteLine($"\nDownloaded customers at {Constants.OutputFolderPath}/customers.{Helper.GetExtenstion(type)}");
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error while exporting customer Details");
-                    logger.LogError(ex.Message);
-                }
+                    }
+                    else
+                    {
+                        string userResponse = GetUserResponse(response.StatusCode);
+                        nextLink = string.Empty;
+                        Console.WriteLine($"{userResponse}");
+                    }
+                } while (!string.IsNullOrEmpty(nextLink));
 
+                var path = $"{Constants.OutputFolderPath}/customers";
+                await exportImportProvider.WriteAsync(allCustomer, $"{path}.{Helper.GetExtenstion(type)}");
+                Console.WriteLine($"\nDownloaded customers at {Constants.OutputFolderPath}/customers.{Helper.GetExtenstion(type)}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error while exporting customer Details");
+                logger.LogError(ex.Message);
             }
             return true;
         }
 
-        private List<DelegatedAdminRelationshipRequest> GetListDelegatedRequest(JObject result, string partnerTenantId) {
+        private List<DelegatedAdminRelationshipRequest> GetListDelegatedRequest(JObject result, string partnerTenantId)
+        {
             var allCustomer = new List<DelegatedAdminRelationshipRequest>();
             foreach (JProperty child in result.Properties().Where(p => !p.Name.StartsWith("@")))
             {
@@ -132,7 +132,7 @@ namespace PartnerLed.Providers
         {
             switch (statusCode)
             {
-                case HttpStatusCode.Unauthorized: return "Authentication Failed. Please make sure your Sign-in credentials are MFA enabled.";
+                case HttpStatusCode.Unauthorized: return "Authentication Failed. Please make sure your Sign-in credentials are correct and MFA enabled.";
                 case HttpStatusCode.NotFound: return "Cutomers not found.";
                 default: return "Failed to get Customer details.";
             }
@@ -145,8 +145,8 @@ namespace PartnerLed.Providers
         /// <returns></returns>
         public async Task<bool> GenerateDAPRelatioshipwithAccessAssignment(ExportImport type)
         {
-            var option = Helper.UserConfirmation("Warning: To run this operation, please make sure all the files should be in the input folder mentioned below");
-            Console.WriteLine($"{Constants.InputFolderPath}/gdapRelationship");
+            var option = Helper.UserConfirmation("Warning: To run this operation, please make sure all the input files are in the folder: \n" + $"{Constants.InputFolderPath}");
+            
             try
             {
                 if (option)
@@ -162,7 +162,7 @@ namespace PartnerLed.Providers
                     while (!Helper.UserConfirmation("Confirm all GDAP relationship activation complete[y/Y] or refresh again[r/R]:"))
                     {
                         await gdapProvider.RefreshGDAPRequestAsync(type);
-                    }                    
+                    }
 
                     await accessAssignmentProvider.CreateAccessAssignmentRequestAsync(type);
                     Console.WriteLine($"\nWaiting for security group-role assignment activations...");
@@ -181,19 +181,16 @@ namespace PartnerLed.Providers
         {
             var confirmation = Helper.UserConfirmation("Warning: This might be a long running operation.");
 
-            if (!confirmation) {
+            if (!confirmation)
+            {
                 return true;
             }
             try
             {
-                var authenticationResult = await tokenProvider.GetTokenAsync(Resource.TrafficManager);
-                if (authenticationResult != null) {
-                    string accessToken = authenticationResult.AccessToken;
-                    var stream = await protectedApiCallHelper.CallWebApiProcessSteamAsync(WebApiUrlAllDapsBulk, accessToken);
-                    SaveStreamAsFile(Constants.OutputFolderPath, stream, "customers-stream.csv.gz");
-                    Console.WriteLine($"Downloaded at {Constants.OutputFolderPath}/customers - stream.csv.gz");
-
-                }
+                var accessToken = await getToken(Resource.TrafficManager);
+                var stream = await protectedApiCallHelper.CallWebApiProcessSteamAsync(WebApiUrlAllDapsBulk, accessToken);
+                SaveStreamAsFile(Constants.OutputFolderPath, stream, "customers-stream.csv.gz");
+                Console.WriteLine($"Downloaded at {Constants.OutputFolderPath}/customers - stream.csv.gz");
             }
             catch (HttpRequestException rex)
             {
@@ -201,7 +198,7 @@ namespace PartnerLed.Providers
                 {
                     logger.LogError("\nThe data is available for Partners with number of Customers more than 300.");
                 }
-                else 
+                else
                 {
                     logger.LogError(rex.Message);
                 }
