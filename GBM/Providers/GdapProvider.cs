@@ -51,30 +51,47 @@ namespace PartnerLed.Providers
 
         private async Task<DelegatedAdminRelationship?> PostGdapRelationship(string url, DelegatedAdminRelationship delegatedAdminRelationship)
         {
-            logger
-                .LogInformation($"GDAP Request:\n{delegatedAdminRelationship.DisplayName}-{delegatedAdminRelationship.Customer.TenantId}\n{JsonConvert.SerializeObject(delegatedAdminRelationship.AccessDetails.UnifiedRoles)}\n");
-            var accessToken = await getToken(Resource.TrafficManager);
-            var response = await protectedApiCallHelper.CallWebApiPostAndProcessResultAsync(url, accessToken,
-                JsonConvert.SerializeObject(delegatedAdminRelationship, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore }).ToString());
+            try
+            {
+                logger
+                    .LogInformation($"GDAP Request:\n{delegatedAdminRelationship.DisplayName}-{delegatedAdminRelationship.Customer.TenantId}\n{JsonConvert.SerializeObject(delegatedAdminRelationship.AccessDetails.UnifiedRoles)}\n");
+                var accessToken = await getToken(Resource.TrafficManager);
+                var response = await protectedApiCallHelper.CallWebApiPostAndProcessResultAsync(url, accessToken,
+                    JsonConvert.SerializeObject(delegatedAdminRelationship, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore }).ToString());
 
-            string userResponse = GetUserResponse(response.StatusCode);
-            Console.WriteLine($"{delegatedAdminRelationship.DisplayName} - {userResponse}");
+                string userResponse = GetUserResponse(response.StatusCode);
+                Console.WriteLine($"{delegatedAdminRelationship.DisplayName} - {userResponse}");
 
-            logger
-              .LogInformation($"GDAP Response:\n{delegatedAdminRelationship.DisplayName} {delegatedAdminRelationship.Customer.TenantId}\n {response.Content.ReadAsStringAsync().Result} \n");
+                logger
+                  .LogInformation($"GDAP Response:\n{delegatedAdminRelationship.DisplayName} {delegatedAdminRelationship.Customer.TenantId}\n {response.Content.ReadAsStringAsync().Result} \n");
 
-            var relationshipObject = response.IsSuccessStatusCode
-                   ? JsonConvert.DeserializeObject<DelegatedAdminRelationship>(response.Content.ReadAsStringAsync().Result)
-                   : new DelegatedAdminRelationship()
-                   {
-                       DisplayName = delegatedAdminRelationship.DisplayName,
-                       Id = string.Empty,
-                       Duration = delegatedAdminRelationship.Duration,
-                       Customer = new DelegatedAdminRelationshipCustomerParticipant() { DisplayName = delegatedAdminRelationship.Customer.DisplayName, TenantId = delegatedAdminRelationship.Customer.TenantId },
-                       Partner = new DelegatedAdminRelationshipParticipant() { TenantId = delegatedAdminRelationship.Partner.TenantId }
-                   };
+                var relationshipObject = response.IsSuccessStatusCode
+                       ? JsonConvert.DeserializeObject<DelegatedAdminRelationship>(response.Content.ReadAsStringAsync().Result)
+                       : new DelegatedAdminRelationship()
+                       {
+                           DisplayName = delegatedAdminRelationship.DisplayName,
+                           Id = string.Empty,
+                           Duration = delegatedAdminRelationship.Duration,
+                           Customer = new DelegatedAdminRelationshipCustomerParticipant() { DisplayName = delegatedAdminRelationship.Customer.DisplayName, TenantId = delegatedAdminRelationship.Customer.TenantId },
+                           Partner = new DelegatedAdminRelationshipParticipant() { TenantId = delegatedAdminRelationship.Partner.TenantId }
+                       };
+                return relationshipObject;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex.Message);
+                Console.WriteLine($"{delegatedAdminRelationship.DisplayName} - Unexpected error.");
+                return new DelegatedAdminRelationship()
+                {
+                    DisplayName = delegatedAdminRelationship.DisplayName,
+                    Id = string.Empty,
+                    Duration = delegatedAdminRelationship.Duration,
+                    Customer = new DelegatedAdminRelationshipCustomerParticipant() { DisplayName = delegatedAdminRelationship.Customer.DisplayName, TenantId = delegatedAdminRelationship.Customer.TenantId },
+                    Partner = new DelegatedAdminRelationshipParticipant() { TenantId = delegatedAdminRelationship.Partner.TenantId }
+                };
+            }
 
-            return relationshipObject;
+           
         }
 
         private string GetUserResponse(HttpStatusCode statusCode)
@@ -101,20 +118,16 @@ namespace PartnerLed.Providers
         /// <param name="accessToken">bearer token.</param>
         /// <param name="nextLink">For fetching paginated query.</param>
         /// <returns>GDAP relationship object</returns>
-        private async Task<T?> GetGdapRelationship<T>(string? granularRelationshipId = null, string? nextLink = null)
+        private async Task<JObject?> GetGdapRelationships(string? nextLink = null)
         {
             var url = WebApiUrlAllGdaps;
             if (string.IsNullOrEmpty(nextLink))
             {
-                if (!string.IsNullOrEmpty(granularRelationshipId))
-                {
-                    url = $"{url}/{granularRelationshipId}";
-                }
-                else { url = $"{url}?$count=true"; }
+                url = $"{url}?$count=true";
             }
             else { url = nextLink; }
             var accessToken = await getToken(Resource.TrafficManager);
-            var response = await protectedApiCallHelper.CallWebApiAndProcessResultAsync(url, accessToken);
+                var response = await protectedApiCallHelper.CallWebApiAndProcessResultAsync(url, accessToken);
             if (!response.IsSuccessStatusCode)
             {
                 if (response.StatusCode == HttpStatusCode.Unauthorized)
@@ -122,7 +135,50 @@ namespace PartnerLed.Providers
                     throw new Exception("Unauthorized. Please make sure your Sign-in credentials are correct and MFA enabled.");
                 }
             }
-            return JsonConvert.DeserializeObject<T>(response.Content.ReadAsStringAsync().Result);
+            return JsonConvert.DeserializeObject<JObject>(response.Content.ReadAsStringAsync().Result);
+        }
+
+        /// <summary>
+        /// Fetch of details of Gdap relationship.
+        /// </summary>
+        /// <param name="granularRelationshipId">Gdap relationshipId</param>
+        /// <param name="accessToken">bearer token.</param>
+        /// <param name="nextLink">For fetching paginated query.</param>
+        /// <returns>GDAP relationship object</returns>
+        private async Task<DelegatedAdminRelationship?> GetGdapRelationship(string? granularRelationshipId = null)
+        {
+            try
+            {
+                var url = WebApiUrlAllGdaps;
+                if (!string.IsNullOrEmpty(granularRelationshipId))
+                {
+                    url = $"{url}/{granularRelationshipId}";
+                }
+                else {
+                    throw new Exception("GDAP relationship id missing."); 
+                }
+
+                var accessToken = await getToken(Resource.TrafficManager);
+                var response = await protectedApiCallHelper.CallWebApiAndProcessResultAsync(url, accessToken);
+                if (!response.IsSuccessStatusCode)
+                {
+                    if (response.StatusCode == HttpStatusCode.Unauthorized)
+                    {
+                        throw new Exception("Unauthorized. Please make sure your Sign-in credentials are correct and MFA enabled.");
+                    }
+                }
+                return JsonConvert.DeserializeObject<DelegatedAdminRelationship>(response.Content.ReadAsStringAsync().Result);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex.Message);
+                Console.WriteLine($"{granularRelationshipId} - Unexpected error.");
+                return new DelegatedAdminRelationship()
+                {
+                    Id = granularRelationshipId,
+                    Status = DelegatedAdminRelationshipStatus.Approved
+                };
+            }
         }
 
         /// <summary>
@@ -157,7 +213,7 @@ namespace PartnerLed.Providers
                 var responseList = new List<DelegatedAdminRelationship>();
                 protectedApiCallHelper.setHeader(false);
                 var tasks = gdapId?
-                    .Select(id => GetGdapRelationship<DelegatedAdminRelationship>(id, null));
+                    .Select(id => GetGdapRelationship(id));
                 DelegatedAdminRelationship?[] collection = await Task.WhenAll(tasks);
                 responseList.AddRange(collection);
 
@@ -266,7 +322,7 @@ namespace PartnerLed.Providers
                 protectedApiCallHelper.setHeader(false);
                 do
                 {
-                    var response = await GetGdapRelationship<JObject>(null, nextLink);
+                    var response = await GetGdapRelationships(nextLink);
                     var nextData = response.Properties().Where(p => p.Name.Contains("nextLink"));
                     nextLink = string.Empty;
                     if (nextData != null)

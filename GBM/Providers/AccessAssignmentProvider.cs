@@ -306,27 +306,41 @@ namespace PartnerLed.Providers
         /// <returns>DelegatedAdminAccessAssignmentRequest</returns>
         private async Task<DelegatedAdminAccessAssignmentRequest?> GetDelegatedAdminAccessAssignment(string gdapRelationshipId, string accessAssignmentId)
         {
-            var url = $"{WebApiUrlAllGdaps}/{gdapRelationshipId}/accessAssignments/{accessAssignmentId}";
-            var token = await getToken(Resource.TrafficManager);
-            var response = await protectedApiCallHelper.CallWebApiAndProcessResultAsync(url, token);
-            if (response != null && response.IsSuccessStatusCode)
+            try
             {
-                var accessAssignmentObject = JsonConvert.DeserializeObject<DelegatedAdminAccessAssignment>(response.Content.ReadAsStringAsync().Result);
+                var url = $"{WebApiUrlAllGdaps}/{gdapRelationshipId}/accessAssignments/{accessAssignmentId}";
+                var token = await getToken(Resource.TrafficManager);
+                var response = await protectedApiCallHelper.CallWebApiAndProcessResultAsync(url, token);
+                if (response != null && response.IsSuccessStatusCode)
+                {
+                    var accessAssignmentObject = JsonConvert.DeserializeObject<DelegatedAdminAccessAssignment>(response.Content.ReadAsStringAsync().Result);
 
-                return new DelegatedAdminAccessAssignmentRequest()
+                    return new DelegatedAdminAccessAssignmentRequest()
+                    {
+                        GdapRelationshipId = gdapRelationshipId,
+                        AccessAssignmentId = accessAssignmentId,
+                        Status = accessAssignmentObject.Status
+                    };
+                }
+                else
                 {
-                    GdapRelationshipId = gdapRelationshipId,
-                    AccessAssignmentId = accessAssignmentId,
-                    Status = accessAssignmentObject.Status
-                };
+                    return new DelegatedAdminAccessAssignmentRequest()
+                    {
+                        GdapRelationshipId = gdapRelationshipId,
+                        AccessAssignmentId = accessAssignmentId,
+                        Status = "Failed"
+                    };
+                }
             }
-            else
+            catch (Exception ex)
             {
+                logger.LogError(ex.Message);
+                Console.WriteLine($"{gdapRelationshipId} - Unexpected error.");
                 return new DelegatedAdminAccessAssignmentRequest()
                 {
                     GdapRelationshipId = gdapRelationshipId,
                     AccessAssignmentId = accessAssignmentId,
-                    Status = "Failed"
+                    Status = "Errored"
                 };
             }
         }
